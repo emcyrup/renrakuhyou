@@ -1,0 +1,29 @@
+# main へ入れる前にビルドが通ることを確かめる。
+# ここが緑であれば、本番へのデプロイでビルドに失敗することはない。
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: 依存関係をインストール
+        run: npm ci
+
+      - name: 型を検査
+        run: npx tsc --noEmit
+
+      - name: ビルド
+        run: npm run build

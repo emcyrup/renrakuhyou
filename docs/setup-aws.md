@@ -112,6 +112,31 @@ Route 53 のホストゾーンは月 $0.50 かかるため、**ドメイン取�
 
 ---
 
+## 実行するユーザーについて（重要）
+
+`/opt/renrakuhyou` の中身は **`renrakuhyou` ユーザーの所有**です。ログイン用の `ubuntu` ユーザーのまま
+`git` や `npm` を実行すると、次のようなエラーで**必ず失敗します**。
+
+```
+fatal: detected dubious ownership in repository at '/opt/renrakuhyou'
+npm error EACCES: permission denied, rmdir '/opt/renrakuhyou/node_modules/.bin'
+Failed to load env from .env [Error: EACCES: permission denied]
+```
+
+**アプリのファイルを扱うコマンドは、必ず次の形で実行してください。**
+
+```bash
+sudo -u renrakuhyou -H bash -c 'cd /opt/renrakuhyou && <コマンド>'
+```
+
+一方、`systemctl` や `/etc` 配下の操作は `sudo`（root）で行います。
+`renrakuhyou` ユーザーは `sudo` を使えないため、**作業は `ubuntu` のシェルから行い、
+アプリのファイルだけ `sudo -u renrakuhyou` を挟む**のが確実です。
+
+迷ったら `whoami` で今のユーザーを確認してください。
+
+---
+
 ## 手順 5. サーバーに接続して準備する
 
 Lightsail コンソールの「SSH を使用して接続」（ブラウザから接続できます）でログインし、root になります。
@@ -184,19 +209,21 @@ ls /opt/renrakuhyou/package.json /opt/renrakuhyou/node_modules/.bin/tsx
 ## 手順 7. 設定ファイルを作る
 
 ```bash
-sudo -u renrakuhyou -H bash
-cd /opt/renrakuhyou
-cp .env.example .env
+sudo -u renrakuhyou -H bash -c 'cd /opt/renrakuhyou && cp .env.example .env'
 
 # 通知に使う鍵を生成する（出力の 3 行を控える）
-npm run push:keys
+sudo -u renrakuhyou -H bash -c 'cd /opt/renrakuhyou && npm run push:keys'
 
 # パスワード類に使うランダム値を 2 つ作る
 openssl rand -base64 32
 openssl rand -base64 32
 ```
 
-`nano .env` で開き、次の項目を設定します。
+次のコマンドで `.env` を開き、項目を設定します。
+
+```bash
+sudo -u renrakuhyou nano /opt/renrakuhyou/.env
+```
 
 ```env
 # 確認者がログインに使うパスワード
@@ -217,11 +244,10 @@ VAPID_PRIVATE_KEY=<秘密鍵>
 VAPID_SUBJECT=mailto:admin@example.co.jp
 ```
 
-保存したら権限を絞り、`exit` で root に戻ります。
+保存したら権限を絞ります。
 
 ```bash
-chmod 600 /opt/renrakuhyou/.env
-exit
+sudo chmod 600 /opt/renrakuhyou/.env
 ```
 
 > **VAPID 鍵は絶対に変更しないでください。** 変更すると登録済みの端末すべてに通知が届かなくなり、
@@ -389,8 +415,20 @@ AWS コンソール → Billing →「予算」→ 予算を作成 → コスト
 
 ### 更新する
 
+**→ 通常はこちらを使ってください: [変更を本番へ反映する手順](./release.md)**
+
+```bash
+sudo /opt/renrakuhyou/deploy/deploy.sh
+```
+
+バックアップ・ビルド・入れ替え・動作確認までを 1 コマンドで行い、失敗時は自動で切り戻します。
+
+以下は手作業で行う場合の手順です。**`ubuntu` のシェルから**実行してください
+（`renrakuhyou` のシェルに入っている場合は `exit` してから）。
+
 ```bash
 sudo -u renrakuhyou -H bash <<'UPDATE'
+set -euo pipefail
 cd /opt/renrakuhyou
 npm run backup
 git pull
@@ -398,7 +436,7 @@ npm ci
 npm run build
 UPDATE
 
-systemctl restart renrakuhyou
+sudo systemctl restart renrakuhyou
 sudo -u renrakuhyou -H bash -c 'cd /opt/renrakuhyou && npm run healthcheck'
 ```
 
@@ -441,6 +479,7 @@ reboot
 | ブラウザで開けない | まず `npm run healthcheck` を実行。`/etc/caddy/Caddyfile` の 1 行目が**完全なホスト名**か（`renrakuhyou999999` のようにドメイン部分が抜けていないか）/ `systemctl status caddy renrakuhyou` / Lightsail のファイアウォールで 443 が開いているか |
 | 証明書が取得できない | `dig +short <ドメイン>` が静的 IP を返すか / ポート 80 が開いているか / `journalctl -u caddy` |
 | **`Job for caddy.service failed.`** | 下の「Caddy が起動しない」を参照 |
+| **`dubious ownership` / `EACCES`** | `ubuntu` のまま実行しています。上の「実行するユーザーについて」を参照し、`sudo -u renrakuhyou -H bash -c '...'` で実行してください |
 | ログインできない | `.env` の `ADMIN_PASSWORD` を確認。変更したら `systemctl restart renrakuhyou` |
 | 通知が届かない | 従業員側が iPhone なら「ホーム画面に追加」を済ませているか / 「送信ログ」画面のエラー |
 | リマインドが動かない | `journalctl -u renrakuhyou-reminders` / `/etc/renrakuhyou-cron.env` の値が `.env` と一致しているか |
@@ -489,23 +528,21 @@ ls /opt/renrakuhyou
 
 `README.md` しか無い場合は、次のコマンドで復旧できます。**最初からやり直す必要はありません。**
 
-> **`sudo` は付けないでください。** 手順 7 の時点では `renrakuhyou` ユーザーになっており、
-> このユーザーは `sudo` を使えません（`renrakuhyou is not in the sudoers file` というエラーになります）。
-> `/opt/renrakuhyou` の所有者は `renrakuhyou` なので、そのまま実行できます。
+**`ubuntu` のシェルから**実行してください（`renrakuhyou` のシェルに入っている場合は `exit` してから）。
 
 ```bash
-cd /opt/renrakuhyou && \
-git pull && \
-npm ci && \
-npm run build && \
+sudo -u renrakuhyou -H bash <<'FIX'
+set -euo pipefail
+cd /opt/renrakuhyou
+git pull
+npm ci
+npm run build
 ls package.json node_modules/.bin/tsx
+FIX
 ```
 
 最後に `package.json` と `node_modules/.bin/tsx` の 2 つが表示されれば成功です。
 そのうえで、手順 7 の `cp .env.example .env` からやり直してください。
-
-`whoami` が `renrakuhyou` 以外（`ubuntu` や `root`）の場合は、先頭に
-`sudo -u renrakuhyou -H bash -c '` を付け、末尾を `'` で閉じて実行してください。
 
 ディレクトリが空の場合は、手順 6 の `git clone` からやり直してください。
 
