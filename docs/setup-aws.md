@@ -284,8 +284,12 @@ cp /opt/renrakuhyou/deploy/Caddyfile /etc/caddy/Caddyfile
 nano /etc/caddy/Caddyfile     # 1 行目の renrakuhyou.example.co.jp を書き換える
 
 caddy validate --config /etc/caddy/Caddyfile   # Valid configuration と出ること
-systemctl reload caddy
+systemctl restart caddy
+systemctl status caddy --no-pager              # active (running) であること
 ```
+
+> `caddy validate` は文法しか検査しません。**文法が正しくても起動に失敗することがある**ため、
+> 必ず `systemctl status caddy` で `active (running)` を確認してください。
 
 数十秒で証明書が取得されます。ブラウザで `https://renrakuhyou.example.co.jp` を開き、
 鍵アイコンとログイン画面が表示されれば公開完了です。
@@ -424,11 +428,41 @@ reboot
 | --- | --- |
 | ブラウザで開けない | `systemctl status caddy renrakuhyou` / Lightsail のファイアウォールで 443 が開いているか |
 | 証明書が取得できない | `dig +short <ドメイン>` が静的 IP を返すか / ポート 80 が開いているか / `journalctl -u caddy` |
+| **`Job for caddy.service failed.`** | 下の「Caddy が起動しない」を参照 |
 | ログインできない | `.env` の `ADMIN_PASSWORD` を確認。変更したら `systemctl restart renrakuhyou` |
 | 通知が届かない | 従業員側が iPhone なら「ホーム画面に追加」を済ませているか / 「送信ログ」画面のエラー |
 | リマインドが動かない | `journalctl -u renrakuhyou-reminders` / `/etc/renrakuhyou-cron.env` の値が `.env` と一致しているか |
 | ビルドが途中で止まる | スワップが有効か（`free -h`）。手順 5 のスワップ作成を実行したか |
 | **手順 7 の npm が失敗する** | 下の「手順 7 の npm が失敗する」を参照 |
+
+### Caddy が起動しない
+
+`Job for caddy.service failed.` は **`caddy validate` ではなく `systemctl restart`（または `reload`）が出すメッセージ**です。
+`caddy validate` は文法しか検査しないため、**文法が正しくても起動に失敗することがあります。**
+
+まず実際のエラーを確認します。
+
+```bash
+journalctl -xeu caddy.service -n 30 --no-pager
+```
+
+| ログに出ている内容 | 原因と対処 |
+| --- | --- |
+| `opening log writer ... permission denied` | ログの出力先に書き込めません。`/etc/caddy/Caddyfile` に `log { ... }` ブロックがあれば削除してください（ログは journald に出るため `journalctl -u caddy` で確認できます）。ファイルに残したい場合は `mkdir -p /var/log/caddy && chown caddy:caddy /var/log/caddy` |
+| `address already in use` | 80 番か 443 番を別のプロセスが使っています。`ss -lntp` で確認して停止してください |
+| `Unit caddy.service is not active` | まだ起動していません。`systemctl start caddy` を実行してください |
+| `unrecognized directive` など | Caddyfile の記述誤りです。`caddy validate --config /etc/caddy/Caddyfile` の出力を確認してください |
+
+対処後に再確認します。
+
+```bash
+systemctl restart caddy
+systemctl status caddy --no-pager     # active (running) であること
+```
+
+> **証明書が取得できないことが原因で、このエラーになることはありません。**
+> Caddy は起動したまま裏で取得を再試行し、失敗の内容は `journalctl -u caddy` に記録されます。
+> DNS の未反映やポート 80 の閉塞は、このエラーの原因ではありません。
 
 ### 手順 7 の npm が失敗する
 

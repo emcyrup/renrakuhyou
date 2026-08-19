@@ -229,7 +229,8 @@ cp /opt/renrakuhyou/deploy/Caddyfile /etc/caddy/Caddyfile
 nano /etc/caddy/Caddyfile          # renrakuhyou.example.co.jp を書き換える
 
 caddy validate --config /etc/caddy/Caddyfile   # Valid configuration と出ること
-systemctl reload caddy
+systemctl restart caddy
+systemctl status caddy --no-pager              # active (running) であること
 ```
 
 数十秒で証明書が取得されます。ブラウザで `https://renrakuhyou.example.co.jp` を開き、鍵アイコンが出れば完了です。
