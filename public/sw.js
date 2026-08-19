@@ -9,6 +9,16 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(self.clients.claim());
 });
 
+/**
+ * 開いたままになっている画面へ「内容を取り直して」と知らせる。
+ * 従業員が本人ページを開きっぱなしでも、連絡の受信がその場で反映されるようにするため。
+ */
+function notifyOpenWindows() {
+  return self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
+    for (const client of clientList) client.postMessage({ type: 'renrakuhyou:refresh' });
+  });
+}
+
 self.addEventListener('push', (event) => {
   if (!event.data) return;
 
@@ -22,20 +32,23 @@ self.addEventListener('push', (event) => {
   const isHigh = payload.level === 'high';
 
   event.waitUntil(
-    self.registration.showNotification(payload.title ?? '連絡があります', {
-      body: payload.body ?? '',
-      tag: payload.token ? `renrakuhyou-${payload.token}` : 'renrakuhyou',
-      renotify: true,
-      // レベル高とリマインドは、操作するまで通知を残す。
-      requireInteraction: isHigh || payload.kind === 'reminder',
-      icon: '/icon-192.png',
-      badge: '/icon-192.png',
-      data: { url: payload.url ?? '/', token: payload.token ?? '' },
-      actions: [
-        { action: 'ack', title: '確認しました' },
-        { action: 'open', title: '内容を見る' },
-      ],
-    }),
+    Promise.all([
+      notifyOpenWindows(),
+      self.registration.showNotification(payload.title ?? '連絡があります', {
+        body: payload.body ?? '',
+        tag: payload.token ? `renrakuhyou-${payload.token}` : 'renrakuhyou',
+        renotify: true,
+        // レベル高とリマインドは、操作するまで通知を残す。
+        requireInteraction: isHigh || payload.kind === 'reminder',
+        icon: '/icon-192.png',
+        badge: '/icon-192.png',
+        data: { url: payload.url ?? '/', token: payload.token ?? '' },
+        actions: [
+          { action: 'ack', title: '確認しました' },
+          { action: 'open', title: '内容を見る' },
+        ],
+      }),
+    ]),
   );
 });
 
@@ -53,11 +66,14 @@ self.addEventListener('notificationclick', (event) => {
       })
         .then((response) => {
           if (!response.ok) throw new Error(String(response.status));
-          return self.registration.showNotification('確認を受け付けました', {
-            body: 'ありがとうございます。',
-            tag: `renrakuhyou-ack-${token}`,
-            icon: '/icon-192.png',
-          });
+          // 開いたままの本人ページにも確認済みを反映させる。
+          return notifyOpenWindows().then(() =>
+            self.registration.showNotification('確認を受け付けました', {
+              body: 'ありがとうございます。',
+              tag: `renrakuhyou-ack-${token}`,
+              icon: '/icon-192.png',
+            }),
+          );
         })
         .catch(() => self.clients.openWindow(url)),
     );

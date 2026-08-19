@@ -1,27 +1,29 @@
 import { deleteEmployeeAction, saveEmployeeAction } from '@/app/actions';
 import CopyField from '@/components/CopyField';
 import { config } from '@/lib/config';
-import { defaultProviderId, listProviders } from '@/lib/messaging';
+import { defaultProviderId, getProvider, listSelectableProviders } from '@/lib/messaging';
 import * as repo from '@/lib/repo';
 import { PROVIDER_LABELS, type ProviderId } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
-const PROVIDER_HINTS: Record<ProviderId, string> = {
+const PROVIDER_HINTS: Partial<Record<ProviderId, string>> = {
   web_push: '入力不要（自動採番されます。従業員には「通知設定URL」を案内してください）',
   google_chat: 'メールアドレス（例: taro@example.co.jp）または users/xxxxx',
-  line_works: 'LINE WORKS のユーザー ID またはメールアドレス',
-  line: 'LINE のユーザー ID（U から始まる 33 文字）',
   mock: '任意の識別子（外部送信は行いません）',
 };
 
 function ProviderSelect({ formId, value }: { formId: string; value: ProviderId }) {
+  const selectable = listSelectableProviders().map((provider) => provider.id);
+  // 選択肢に無いサービスが設定されている従業員は、保存で勝手に変わらないよう現在値も残す。
+  const ids = selectable.includes(value) ? selectable : [value, ...selectable];
+
   return (
     <select form={formId} name="provider" defaultValue={value} className="input py-1 text-xs">
-      {listProviders().map((provider) => (
-        <option key={provider.id} value={provider.id}>
-          {PROVIDER_LABELS[provider.id]}
-          {provider.isConfigured() ? '' : '（未設定）'}
+      {ids.map((id) => (
+        <option key={id} value={id}>
+          {PROVIDER_LABELS[id]}
+          {getProvider(id).isConfigured() ? '' : '（未設定）'}
         </option>
       ))}
     </select>
@@ -72,7 +74,7 @@ export default async function EmployeesPage({ searchParams }: { searchParams: Pr
               サービス
             </label>
             <select id="new-provider" name="provider" defaultValue={defaultProviderId()} className="input">
-              {listProviders().map((provider) => (
+              {listSelectableProviders().map((provider) => (
                 <option key={provider.id} value={provider.id}>
                   {PROVIDER_LABELS[provider.id]}
                   {provider.isConfigured() ? '' : '（未設定）'}
@@ -95,7 +97,7 @@ export default async function EmployeesPage({ searchParams }: { searchParams: Pr
         </form>
 
         <ul className="mt-4 space-y-1 text-xs text-slate-500">
-          {listProviders().map((provider) => (
+          {listSelectableProviders().map((provider) => (
             <li key={provider.id}>
               <span className="font-semibold text-slate-600">{PROVIDER_LABELS[provider.id]}</span>：
               {PROVIDER_HINTS[provider.id]}
