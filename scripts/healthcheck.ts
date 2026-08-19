@@ -17,6 +17,19 @@ function record(level: Level, label: string, detail?: string) {
   results.push({ level, label, detail });
 }
 
+/**
+ * ファイルを読む。読めない場合は例外にせず null を返す。
+ * このスクリプトはアプリ用ユーザーで実行されるため、root 専用のファイルは読めないことがある。
+ */
+function readFileSafe(file: string): { content: string } | { error: string } {
+  try {
+    return { content: fs.readFileSync(file, 'utf8') };
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+    return { error: code === 'EACCES' ? '読み取り権限がありません' : String(code ?? error) };
+  }
+}
+
 function checkEnv() {
   const required = ['ADMIN_PASSWORD', 'SESSION_SECRET', 'CRON_SECRET'];
   // .env.example の初期値。変更し忘れるとそのまま第三者に使われてしまう。
@@ -193,8 +206,13 @@ function checkCronEnvFile() {
     return;
   }
 
-  const content = fs.readFileSync(file, 'utf8');
-  const match = content.match(/^CRON_SECRET=(.*)$/m);
+  const read = readFileSafe(file);
+  if ('error' in read) {
+    record('WARN', `${file} を確認できない（${read.error}）`, 'root で実行すると照合できます');
+    return;
+  }
+
+  const match = read.content.match(/^CRON_SECRET=(.*)$/m);
   if (!match) {
     record('FAIL', `${file} に CRON_SECRET がない`);
   } else if (match[1].trim() !== process.env.CRON_SECRET) {
@@ -225,8 +243,13 @@ function checkCaddySite() {
   // サイトブロックの見出し行（`example.com {` や `example.com, www.example.com {`）を集める。
   // header などのネストしたディレクティブを拾わないよう、字下げのない行だけを見る。
   // 先頭のグローバル設定ブロック（`{` だけの行）も対象外。
-  const addresses = fs
-    .readFileSync(file, 'utf8')
+  const read = readFileSafe(file);
+  if ('error' in read) {
+    record('WARN', `${file} を確認できない（${read.error}）`, 'root で実行すると照合できます');
+    return;
+  }
+
+  const addresses = read.content
     .split('\n')
     .filter((line) => line === line.trimStart())
     .map((line) => line.trim())

@@ -328,6 +328,13 @@ sudo -u renrakuhyou -H bash -c 'cd /opt/renrakuhyou && npm run healthcheck'
 
 **「失敗」が 0 件になるまで進めてください。** 失敗が残っている状態では、従業員に連絡が届かない可能性があります。
 
+> `/etc/renrakuhyou-cron.env` は root 専用のため、上のコマンドでは「注意」と表示されます。
+> ここまで含めて照合したい場合は、root のまま次を実行してください。
+>
+> ```bash
+> cd /opt/renrakuhyou && npm run healthcheck
+> ```
+
 ---
 
 ## 手順 11. 使いはじめる
