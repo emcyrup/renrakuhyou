@@ -102,20 +102,29 @@ which node     # /usr/bin/node であること（違う場合は手順 6 のパ�
 
 ### 4. アプリを配置してビルド
 
+> **`--branch` の指定を省略しないでください。** 既定ブランチ（`main`）にはまだアプリのコードが入っていないため、
+> 省略すると README しか取得できず、この先の `npm` がすべて失敗します。
+> 既定ブランチへ取り込み済みであれば `--branch` 以下は不要です。
+
 ```bash
 mkdir -p /opt/renrakuhyou
 chown renrakuhyou:renrakuhyou /opt/renrakuhyou
 
 sudo -u renrakuhyou -H bash <<'SETUP'
+set -euo pipefail
 cd /opt/renrakuhyou
-git clone https://github.com/emcyrup/renrakuhyou.git .
+git clone --branch claude/employee-message-notification-app-2av236 \
+          https://github.com/emcyrup/renrakuhyou.git .
 npm ci
 npm run build
 SETUP
 ```
 
-> まだ既定ブランチへ取り込んでいない場合は、`git clone` のあとに
-> `git checkout claude/employee-message-notification-app-2av236` を実行してからビルドしてください。
+**次へ進む前に確認します。** 2 つとも表示されれば成功です。
+
+```bash
+ls /opt/renrakuhyou/package.json /opt/renrakuhyou/node_modules/.bin/tsx
+```
 
 ### 5. 設定ファイルを作る
 

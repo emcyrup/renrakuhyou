@@ -156,10 +156,16 @@ chown renrakuhyou:renrakuhyou /opt/renrakuhyou
 
 ## 手順 6. アプリを配置してビルドする
 
+> **`--branch` の指定を省略しないでください。** 既定ブランチ（`main`）にはまだアプリのコードが入っていないため、
+> 省略すると README しか取得できず、この先の `npm` がすべて失敗します。
+> 既定ブランチへ取り込み済みであれば `--branch` 以下は不要です。
+
 ```bash
 sudo -u renrakuhyou -H bash <<'SETUP'
+set -euo pipefail
 cd /opt/renrakuhyou
-git clone https://github.com/emcyrup/renrakuhyou.git .
+git clone --branch claude/employee-message-notification-app-2av236 \
+          https://github.com/emcyrup/renrakuhyou.git .
 npm ci
 npm run build
 SETUP
@@ -167,12 +173,18 @@ SETUP
 
 ビルドに 2〜3 分かかります。`✓ Compiled successfully` と出れば成功です。
 
+**次へ進む前に、取得できているか必ず確認してください。**
+
+```bash
+ls /opt/renrakuhyou/package.json /opt/renrakuhyou/node_modules/.bin/tsx
+```
+
+2 つとも表示されれば成功です。`No such file or directory` が出る場合は、[困ったときは](#困ったときは)の
+「手順 7 の npm が失敗する」を参照してください。
+
 > **リポジトリが非公開の場合**は `git clone` が失敗します。次のいずれかで対応してください。
 > - GitHub でこのサーバー用の **デプロイキー**（読み取り専用）を登録し、SSH 形式の URL でクローンする
 > - 手元の PC から `scp -r ./renrakuhyou ubuntu@<静的IP>:/tmp/` で転送し、`/opt/renrakuhyou` へ移動する
->
-> まだ既定ブランチへ取り込んでいない場合は、クローン後に
-> `git checkout claude/employee-message-notification-app-2av236` を実行してからビルドしてください。
 
 ## 手順 7. 設定ファイルを作る
 
@@ -421,6 +433,38 @@ reboot
 | 通知が届かない | 従業員側が iPhone なら「ホーム画面に追加」を済ませているか / 「送信ログ」画面のエラー |
 | リマインドが動かない | `journalctl -u renrakuhyou-reminders` / `/etc/renrakuhyou-cron.env` の値が `.env` と一致しているか |
 | ビルドが途中で止まる | スワップが有効か（`free -h`）。手順 5 のスワップ作成を実行したか |
+| **手順 7 の npm が失敗する** | 下の「手順 7 の npm が失敗する」を参照 |
+
+### 手順 7 の npm が失敗する
+
+`npm error Missing script: "push:keys"` や `Could not read package.json` が出る場合、
+**手順 6 でアプリのコードを取得できていません**（`--branch` の指定漏れが原因のことが多いです）。
+
+まず状態を確認します。
+
+```bash
+ls /opt/renrakuhyou
+```
+
+`README.md` しか無い場合は、次のコマンドで復旧できます。**やり直しは不要です。**
+
+```bash
+sudo -u renrakuhyou -H bash <<'FIX'
+set -euo pipefail
+cd /opt/renrakuhyou
+git fetch origin claude/employee-message-notification-app-2av236
+git checkout claude/employee-message-notification-app-2av236
+npm ci
+npm run build
+FIX
+
+# 確認: 2 つとも表示されれば成功
+ls /opt/renrakuhyou/package.json /opt/renrakuhyou/node_modules/.bin/tsx
+```
+
+そのうえで、手順 7 からやり直してください。
+
+ディレクトリが空の場合は、手順 6 の `git clone` をやり直してください。
 
 まず `npm run healthcheck` を実行してください。多くの原因はこれで特定できます。
 
