@@ -83,6 +83,7 @@ npm run dev
 ### インターネットに公開する
 
 **→ [AWS での構築手順](docs/setup-aws.md)**（Lightsail 東京で月 750 円程度。この 1 枚で完結します）
+**→ [変更を本番へ反映する手順](docs/release.md)**（main へマージ → `deploy.sh` を 1 回実行）
 **→ [インターネット公開の手順](docs/deployment.md)**（VPS 全般。費用ゼロの構成も記載）
 **→ [AWS / GCP の比較](docs/deployment-cloud.md)**（どのサービスを選ぶかの判断材料）
 

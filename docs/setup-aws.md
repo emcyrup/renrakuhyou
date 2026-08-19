@@ -415,7 +415,16 @@ AWS コンソール → Billing →「予算」→ 予算を作成 → コスト
 
 ### 更新する
 
-**`ubuntu` のシェルから**実行してください（`renrakuhyou` のシェルに入っている場合は `exit` してから）。
+**→ 通常はこちらを使ってください: [変更を本番へ反映する手順](./release.md)**
+
+```bash
+sudo /opt/renrakuhyou/deploy/deploy.sh
+```
+
+バックアップ・ビルド・入れ替え・動作確認までを 1 コマンドで行い、失敗時は自動で切り戻します。
+
+以下は手作業で行う場合の手順です。**`ubuntu` のシェルから**実行してください
+（`renrakuhyou` のシェルに入っている場合は `exit` してから）。
 
 ```bash
 sudo -u renrakuhyou -H bash <<'UPDATE'
