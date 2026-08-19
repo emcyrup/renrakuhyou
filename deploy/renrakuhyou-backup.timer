@@ -1,0 +1,11 @@
+# 毎日 3:30 にバックアップを取得する
+# 設置先: /etc/systemd/system/renrakuhyou-backup.timer
+[Unit]
+Description=連絡票 バックアップの定期実行
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

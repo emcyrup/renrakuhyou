@@ -1,0 +1,26 @@
+# 連絡票アプリ本体
+# 設置先: /etc/systemd/system/renrakuhyou.service
+[Unit]
+Description=連絡票（従業員連絡アプリ）
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=renrakuhyou
+WorkingDirectory=/opt/renrakuhyou
+# .env は Next.js が WorkingDirectory から読み込む
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3000 -H 127.0.0.1
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+
+# 最低限の隔離。アプリ配下（DB とバックアップ）だけ書き込みを許可する
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/renrakuhyou
+
+[Install]
+WantedBy=multi-user.target
