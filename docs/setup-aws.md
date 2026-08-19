@@ -156,16 +156,11 @@ chown renrakuhyou:renrakuhyou /opt/renrakuhyou
 
 ## 手順 6. アプリを配置してビルドする
 
-> **`--branch` の指定を省略しないでください。** 既定ブランチ（`main`）にはまだアプリのコードが入っていないため、
-> 省略すると README しか取得できず、この先の `npm` がすべて失敗します。
-> 既定ブランチへ取り込み済みであれば `--branch` 以下は不要です。
-
 ```bash
 sudo -u renrakuhyou -H bash <<'SETUP'
 set -euo pipefail
 cd /opt/renrakuhyou
-git clone --branch claude/employee-message-notification-app-2av236 \
-          https://github.com/emcyrup/renrakuhyou.git .
+git clone https://github.com/emcyrup/renrakuhyou.git .
 npm ci
 npm run build
 SETUP
@@ -438,7 +433,7 @@ reboot
 ### 手順 7 の npm が失敗する
 
 `npm error Missing script: "push:keys"` や `Could not read package.json` が出る場合、
-**手順 6 でアプリのコードを取得できていません**（`--branch` の指定漏れが原因のことが多いです）。
+**手順 6 でアプリのコードを取得できていません。**
 
 まず状態を確認します。
 
@@ -446,25 +441,27 @@ reboot
 ls /opt/renrakuhyou
 ```
 
-`README.md` しか無い場合は、次のコマンドで復旧できます。**やり直しは不要です。**
+`README.md` しか無い場合は、次のコマンドで復旧できます。**最初からやり直す必要はありません。**
+
+> **`sudo` は付けないでください。** 手順 7 の時点では `renrakuhyou` ユーザーになっており、
+> このユーザーは `sudo` を使えません（`renrakuhyou is not in the sudoers file` というエラーになります）。
+> `/opt/renrakuhyou` の所有者は `renrakuhyou` なので、そのまま実行できます。
 
 ```bash
-sudo -u renrakuhyou -H bash <<'FIX'
-set -euo pipefail
-cd /opt/renrakuhyou
-git fetch origin claude/employee-message-notification-app-2av236
-git checkout claude/employee-message-notification-app-2av236
-npm ci
-npm run build
-FIX
-
-# 確認: 2 つとも表示されれば成功
-ls /opt/renrakuhyou/package.json /opt/renrakuhyou/node_modules/.bin/tsx
+cd /opt/renrakuhyou && \
+git pull && \
+npm ci && \
+npm run build && \
+ls package.json node_modules/.bin/tsx
 ```
 
-そのうえで、手順 7 からやり直してください。
+最後に `package.json` と `node_modules/.bin/tsx` の 2 つが表示されれば成功です。
+そのうえで、手順 7 の `cp .env.example .env` からやり直してください。
 
-ディレクトリが空の場合は、手順 6 の `git clone` をやり直してください。
+`whoami` が `renrakuhyou` 以外（`ubuntu` や `root`）の場合は、先頭に
+`sudo -u renrakuhyou -H bash -c '` を付け、末尾を `'` で閉じて実行してください。
+
+ディレクトリが空の場合は、手順 6 の `git clone` からやり直してください。
 
 まず `npm run healthcheck` を実行してください。多くの原因はこれで特定できます。
 
