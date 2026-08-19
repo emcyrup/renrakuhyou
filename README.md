@@ -82,8 +82,9 @@ npm run dev
 
 ### インターネットに公開する
 
-**→ [インターネット公開の手順](docs/deployment.md)**（VPS で月 700〜1,000 円程度、費用ゼロの構成も記載）
-**→ [AWS / GCP での構築手順](docs/deployment-cloud.md)**（AWS Lightsail 東京で月 750 円程度）
+**→ [AWS での構築手順](docs/setup-aws.md)**（Lightsail 東京で月 750 円程度。この 1 枚で完結します）
+**→ [インターネット公開の手順](docs/deployment.md)**（VPS 全般。費用ゼロの構成も記載）
+**→ [AWS / GCP の比較](docs/deployment-cloud.md)**（どのサービスを選ぶかの判断材料）
 
 設定ファイル（systemd / Caddy）は [`deploy/`](deploy/) に用意しています。
 
@@ -143,6 +144,7 @@ src/
 | `MAX_REMINDERS` | `3` | リマインドの上限回数 |
 | `CRON_SECRET` | — | `/api/cron/reminders` の認証トークン |
 | `BACKUP_KEEP_DAYS` | `14` | バックアップの保持日数 |
+| `PORT` | `3000` | セルフチェックが確認するアプリのポート |
 | `DEFAULT_PROVIDER` | `mock` | 従業員登録時の既定サービス |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | — | アプリ通知に使う鍵（`npm run push:keys` で生成） |
 | `VAPID_SUBJECT` | — | push サービスへの連絡先（`mailto:` の URL） |
