@@ -83,6 +83,7 @@ npm run dev
 ### インターネットに公開する
 
 **→ [インターネット公開の手順](docs/deployment.md)**（VPS で月 700〜1,000 円程度、費用ゼロの構成も記載）
+**→ [AWS / GCP での構築手順](docs/deployment-cloud.md)**（AWS Lightsail 東京で月 750 円程度）
 
 設定ファイル（systemd / Caddy）は [`deploy/`](deploy/) に用意しています。
 
