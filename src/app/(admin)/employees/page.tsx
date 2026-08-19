@@ -1,4 +1,6 @@
 import { deleteEmployeeAction, saveEmployeeAction } from '@/app/actions';
+import CopyField from '@/components/CopyField';
+import { config } from '@/lib/config';
 import { defaultProviderId, listProviders } from '@/lib/messaging';
 import * as repo from '@/lib/repo';
 import { PROVIDER_LABELS, type ProviderId } from '@/lib/types';
@@ -6,6 +8,7 @@ import { PROVIDER_LABELS, type ProviderId } from '@/lib/types';
 export const dynamic = 'force-dynamic';
 
 const PROVIDER_HINTS: Record<ProviderId, string> = {
+  web_push: '入力不要（自動採番されます。従業員には「通知設定URL」を案内してください）',
   google_chat: 'メールアドレス（例: taro@example.co.jp）または users/xxxxx',
   line_works: 'LINE WORKS のユーザー ID またはメールアドレス',
   line: 'LINE のユーザー ID（U から始まる 33 文字）',
@@ -28,6 +31,7 @@ function ProviderSelect({ formId, value }: { formId: string; value: ProviderId }
 export default async function EmployeesPage({ searchParams }: { searchParams: Promise<{ error?: string }> }) {
   const { error } = await searchParams;
   const employees = repo.listEmployees();
+  const pushCounts = repo.countPushSubscriptionsByEmployee();
 
   return (
     <>
@@ -80,7 +84,8 @@ export default async function EmployeesPage({ searchParams }: { searchParams: Pr
             <label className="label text-xs" htmlFor="new-provider-user-id">
               送信先 ID
             </label>
-            <input id="new-provider-user-id" name="providerUserId" className="input" required />
+            <input id="new-provider-user-id" name="providerUserId" className="input" />
+            <p className="mt-1 text-xs text-slate-500">アプリ通知の場合は空欄で構いません。</p>
           </div>
           <div className="sm:col-span-2 lg:col-span-5">
             <button type="submit" className="btn-primary">
@@ -108,7 +113,7 @@ export default async function EmployeesPage({ searchParams }: { searchParams: Pr
           <p className="px-4 py-10 text-center text-sm text-slate-500">まだ登録がありません。</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[56rem]">
+            <table className="w-full min-w-[70rem]">
               <thead className="bg-slate-50">
                 <tr>
                   <th className="th">氏名</th>
@@ -116,6 +121,7 @@ export default async function EmployeesPage({ searchParams }: { searchParams: Pr
                   <th className="th">電話番号</th>
                   <th className="th">サービス</th>
                   <th className="th">送信先 ID</th>
+                  <th className="th">通知設定</th>
                   <th className="th">有効</th>
                   <th className="th"> </th>
                 </tr>
@@ -152,6 +158,25 @@ export default async function EmployeesPage({ searchParams }: { searchParams: Pr
                         defaultValue={employee.provider_user_id}
                         className="input py-1"
                       />
+                    </td>
+                    <td className="td">
+                      {employee.provider === 'web_push' ? (
+                        <div className="space-y-1">
+                          {(pushCounts.get(employee.id) ?? 0) > 0 ? (
+                            <span className="badge bg-emerald-100 text-emerald-800">
+                              設定済み（{pushCounts.get(employee.id)} 台）
+                            </span>
+                          ) : (
+                            <span className="badge bg-red-100 text-red-700">未設定</span>
+                          )}
+                          <CopyField
+                            label={`${employee.name} さんの通知設定URL`}
+                            value={`${config.appBaseUrl}/enroll/${employee.enroll_token}`}
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
                     </td>
                     <td className="td text-center">
                       <input

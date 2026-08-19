@@ -8,19 +8,22 @@
     "start": "next start",
     "typecheck": "tsc --noEmit",
     "db:seed": "tsx scripts/seed.ts",
-    "worker": "tsx scripts/worker.ts"
+    "worker": "tsx scripts/worker.ts",
+    "push:keys": "tsx scripts/generate-vapid-keys.ts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
     "next": "^15.5.23",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^9.6.0",
     "@types/node": "^26.2.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
+    "@types/web-push": "^3.6.4",
     "autoprefixer": "^10.5.4",
     "postcss": "^8.5.26",
     "tailwindcss": "^3.4.19",

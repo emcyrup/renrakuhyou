@@ -1,13 +1,16 @@
 # 連絡票（renrakuhyou）
 
-従業員へメッセージアプリ経由で連絡を送り、**開封・確認・電話連絡の状況を 1 画面で管理する**ための業務アプリです。
+従業員のスマートフォンへ連絡を送り、**開封・確認・電話連絡の状況を 1 画面で管理する**ための業務アプリです。
 
 - 確認者は、連絡の作成・送信相手の選択・確認状況の把握を 1 画面で行えます。
-- 従業員は、使い慣れたメッセージアプリで連絡を受け取り、「確認」ボタンを押すだけで応答できます。
+- 従業員は、通知やメッセージで連絡を受け取り、「確認」ボタンを押すだけで応答できます。
 - 24 時間確認がない場合、確認者にはポップアップで、従業員にはリマインドで自動的に通知されます。
 
-対応サービス: **Google Chat** / **LINE WORKS** / **LINE 公式アカウント**（`.env` で切り替え）
-どれを選ぶべきかは [メッセージサービスの選定](docs/messaging-service-comparison.md) を参照してください。
+配信手段: **アプリ通知（Web Push / PWA）** / **Google Chat** / **LINE WORKS** / **LINE 公式アカウント**
+従業員ごとに指定でき、混在も可能です。どれを選ぶべきかは [メッセージサービスの選定](docs/messaging-service-comparison.md) を参照してください。
+
+**外部サービスの契約がない場合は、アプリ通知（Web Push）を推奨します。** 費用は 0 円、人数上限も通数課金もなく、
+従業員はアカウント作成もアプリのインストールも行いません（→ [設定手順](docs/setup-web-push.md)）。
 
 ## 画面と機能
 
@@ -23,8 +26,13 @@
 
 ### 2. 従業員向け（ログイン不要）
 
-メッセージアプリに届いたボタン、または確認画面 `/ack/[token]` から「確認しました」を押すだけです。
-トークンは配信ごとに発行される推測困難な値で、他人の連絡は閲覧できません。
+| 画面 | 内容 |
+| --- | --- |
+| 確認画面 `/ack/[token]` | 連絡の内容と「確認しました」ボタン。 |
+| 本人ページ `/enroll/[token]` | 通知の設定と、自分宛の連絡の一覧。ホーム画面に追加するとアプリとして使えます。 |
+
+通知・チャットに届いたボタン、または確認画面から「確認しました」を押すだけです。
+**ID もパスワードもありません。**本人の識別は URL に含まれる推測困難なトークンで行い、他人の連絡は閲覧できません。
 
 ## 連絡のレベル
 
@@ -41,7 +49,7 @@
 送信から `OVERDUE_HOURS`（既定 24 時間）を過ぎても確認がない配信は、次の 2 つの経路で扱われます。
 
 1. **確認者** — ダッシュボードを開いた時点でポップアップ表示（対象の連絡と従業員の一覧、電話連絡が未実施の宛先も併記）。
-2. **従業員** — メッセージアプリへリマインドを自動送信。`REMINDER_INTERVAL_HOURS`（既定 24 時間）おきに、`MAX_REMINDERS`（既定 3 回）まで。
+2. **従業員** — 通知やメッセージでリマインドを自動送信。`REMINDER_INTERVAL_HOURS`（既定 24 時間）おきに、`MAX_REMINDERS`（既定 3 回）まで。
 
 リマインドの実行方法は 2 通りあります。
 
@@ -72,9 +80,12 @@ npm run dev
 
 ### 本番向けの設定
 
-1. [Google Chat の設定手順](docs/setup-google-chat.md) または [LINE WORKS / LINE の設定手順](docs/setup-line-works.md) に従って認証情報を `.env` に設定。
+1. 配信手段に応じて設定手順に従い、`.env` に認証情報を設定。
+   - [アプリ通知（Web Push）の設定手順](docs/setup-web-push.md) ← 推奨
+   - [Google Chat の設定手順](docs/setup-google-chat.md)
+   - [LINE WORKS / LINE の設定手順](docs/setup-line-works.md)
 2. `APP_BASE_URL` を、従業員のスマートフォンから到達できる公開 URL に設定（確認画面のリンクに使われます）。
-3. Webhook URL（`/api/webhooks/<provider>`）を各サービス側に登録。
+3. チャットサービスを使う場合は、Webhook URL（`/api/webhooks/<provider>`）を各サービス側に登録。
 4. `npm run build && npm start` で起動し、`/api/cron/reminders` を定期実行するよう設定。
 
 ## 技術構成
@@ -84,15 +95,20 @@ npm run dev
 - **Tailwind CSS**
 - 認証は共有パスワード + HMAC 署名付き Cookie（12 時間有効）
 
+また `public/sw.js` が通知の受信と、通知上の「確認しました」を処理します。
+
 ```
 src/
 ├─ app/                       画面と API ルート
 │  ├─ (admin)/                確認者向け（ログイン必須）
 │  ├─ ack/[token]/            従業員向けの確認画面
+│  ├─ enroll/[token]/         従業員本人のページ（通知設定・連絡一覧）
 │  └─ api/
+│     ├─ push/                通知の端末登録・確認・テスト送信
+│     ├─ manifest/[token]/    従業員ごとの Web App Manifest
 │     ├─ webhooks/[provider]/ チャットのボタン押下を受け取る
 │     └─ cron/reminders/      リマインドの定期実行
-├─ components/                ポップアップ、連絡作成フォームなど
+├─ components/                ポップアップ、連絡作成フォーム、通知設定など
 └─ lib/
    ├─ messaging/              サービスごとの送信・Webhook 実装
    ├─ delivery-service.ts     送信とリマインドの業務ロジック
@@ -118,5 +134,7 @@ src/
 | `MAX_REMINDERS` | `3` | リマインドの上限回数 |
 | `CRON_SECRET` | — | `/api/cron/reminders` の認証トークン |
 | `DEFAULT_PROVIDER` | `mock` | 従業員登録時の既定サービス |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | — | アプリ通知に使う鍵（`npm run push:keys` で生成） |
+| `VAPID_SUBJECT` | — | push サービスへの連絡先（`mailto:` の URL） |
 
 サービスごとの認証情報は [.env.example](.env.example) を参照してください。

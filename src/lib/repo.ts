@@ -1,8 +1,25 @@
 import crypto from 'node:crypto';
 import { db, nowIso } from './db';
-import type { Delivery, DeliveryRow, Employee, Message, MessageLevel, ProviderId } from './types';
+import type {
+  Delivery,
+  DeliveryRow,
+  Employee,
+  Message,
+  MessageLevel,
+  ProviderId,
+  PushSubscriptionRow,
+} from './types';
 
 // ---------------------------------------------------------------- 従業員
+
+/**
+ * アプリ通知（Web Push）は送信先 ID を人が入力する必要がないため、
+ * 未入力なら内部用の識別子を自動採番する。
+ */
+function normalizeProviderUserId(provider: ProviderId, providerUserId: string): string {
+  if (provider === 'web_push' && !providerUserId) return `push:${crypto.randomUUID()}`;
+  return providerUserId;
+}
 
 export function listEmployees(activeOnly = false): Employee[] {
   const where = activeOnly ? 'WHERE active = 1' : '';
@@ -22,11 +39,19 @@ export function createEmployee(input: {
 }): number {
   const result = db()
     .prepare(
-      `INSERT INTO employees (name, department, phone, provider, provider_user_id)
-       VALUES (@name, @department, @phone, @provider, @providerUserId)`,
+      `INSERT INTO employees (name, department, phone, provider, provider_user_id, enroll_token)
+       VALUES (@name, @department, @phone, @provider, @providerUserId, @enrollToken)`,
     )
-    .run(input);
+    .run({
+      ...input,
+      providerUserId: normalizeProviderUserId(input.provider, input.providerUserId),
+      enrollToken: crypto.randomBytes(24).toString('base64url'),
+    });
   return Number(result.lastInsertRowid);
+}
+
+export function getEmployeeByEnrollToken(token: string): Employee | undefined {
+  return db().prepare('SELECT * FROM employees WHERE enroll_token = ?').get(token) as Employee | undefined;
 }
 
 export function updateEmployee(
@@ -41,7 +66,12 @@ export function updateEmployee(
               provider_space_id = CASE WHEN provider_user_id = @providerUserId THEN provider_space_id ELSE '' END
         WHERE id = @id`,
     )
-    .run({ ...input, id, active: input.active ? 1 : 0 });
+    .run({
+      ...input,
+      providerUserId: normalizeProviderUserId(input.provider, input.providerUserId),
+      id,
+      active: input.active ? 1 : 0,
+    });
 }
 
 export function deleteEmployee(id: number): void {
@@ -128,6 +158,18 @@ export function listDeliveries(messageId: number): DeliveryRow[] {
   return db()
     .prepare(`${DELIVERY_ROW_SELECT} WHERE d.message_id = ? ORDER BY e.department, e.name`)
     .all(messageId) as DeliveryRow[];
+}
+
+/** 従業員本人のページに表示する、その人宛の配信一覧。 */
+export function listDeliveriesForEmployee(employeeId: number, limit = 20): DeliveryRow[] {
+  return db()
+    .prepare(
+      `${DELIVERY_ROW_SELECT}
+        WHERE d.employee_id = ? AND d.sent_at IS NOT NULL
+        ORDER BY d.sent_at DESC
+        LIMIT ?`,
+    )
+    .all(employeeId, limit) as DeliveryRow[];
 }
 
 export function getDeliveryByToken(token: string): DeliveryRow | undefined {
@@ -237,6 +279,64 @@ export function recordReminderSent(deliveryId: number): void {
   db()
     .prepare('UPDATE deliveries SET reminder_count = reminder_count + 1, last_reminder_at = ? WHERE id = ?')
     .run(nowIso(), deliveryId);
+}
+
+// ---------------------------------------------------------------- Web Push の購読
+
+export function listPushSubscriptions(employeeId: number): PushSubscriptionRow[] {
+  return db()
+    .prepare('SELECT * FROM push_subscriptions WHERE employee_id = ? ORDER BY id')
+    .all(employeeId) as PushSubscriptionRow[];
+}
+
+/** 端末の購読を登録する。同じ endpoint が既にあれば従業員の付け替えのみ行う。 */
+export function savePushSubscription(input: {
+  employeeId: number;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  userAgent: string;
+}): void {
+  db()
+    .prepare(
+      `INSERT INTO push_subscriptions (employee_id, endpoint, p256dh, auth, user_agent)
+       VALUES (@employeeId, @endpoint, @p256dh, @auth, @userAgent)
+       ON CONFLICT(endpoint) DO UPDATE SET
+         employee_id = excluded.employee_id,
+         p256dh      = excluded.p256dh,
+         auth        = excluded.auth,
+         user_agent  = excluded.user_agent`,
+    )
+    .run(input);
+}
+
+export function deletePushSubscription(endpoint: string): void {
+  db().prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(endpoint);
+}
+
+export function markPushSuccess(id: number): void {
+  db().prepare('UPDATE push_subscriptions SET last_success_at = ? WHERE id = ?').run(nowIso(), id);
+}
+
+/** 従業員ごとの登録端末数（通知設定が済んでいるかの判定に使う）。 */
+export function countPushSubscriptionsByEmployee(): Map<number, number> {
+  const rows = db()
+    .prepare('SELECT employee_id, COUNT(*) AS count FROM push_subscriptions GROUP BY employee_id')
+    .all() as { employee_id: number; count: number }[];
+  return new Map(rows.map((row) => [row.employee_id, row.count]));
+}
+
+/** アプリ通知を使う設定なのに、まだ端末を登録していない有効な従業員。 */
+export function listEmployeesMissingPush(): Employee[] {
+  return db()
+    .prepare(
+      `SELECT e.* FROM employees e
+        WHERE e.provider = 'web_push'
+          AND e.active = 1
+          AND NOT EXISTS (SELECT 1 FROM push_subscriptions p WHERE p.employee_id = e.id)
+        ORDER BY e.department, e.name`,
+    )
+    .all() as Employee[];
 }
 
 // ---------------------------------------------------------------- 送信ログ

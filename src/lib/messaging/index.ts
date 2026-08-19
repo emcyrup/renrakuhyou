@@ -3,9 +3,11 @@ import { googleChatProvider } from './google-chat';
 import { lineProvider } from './line';
 import { lineWorksProvider } from './line-works';
 import { mockProvider } from './mock';
+import { webPushProvider } from './web-push';
 import type { MessagingProvider } from './types';
 
 const PROVIDERS: Record<ProviderId, MessagingProvider> = {
+  web_push: webPushProvider,
   google_chat: googleChatProvider,
   line_works: lineWorksProvider,
   line: lineProvider,

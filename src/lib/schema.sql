@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS employees (
   provider         TEXT    NOT NULL,                   -- google_chat | line_works | line | mock
   provider_user_id TEXT    NOT NULL,                   -- 例: Google Chat の users/xxx またはメール
   provider_space_id TEXT   NOT NULL DEFAULT '',        -- Google Chat の DM スペース（解決後にキャッシュ）
+  enroll_token     TEXT,                               -- 通知設定ページ /enroll/[token] のトークン
   active           INTEGER NOT NULL DEFAULT 1,
   created_at       TEXT    NOT NULL DEFAULT (datetime('now')),
   UNIQUE (provider, provider_user_id)
@@ -53,6 +54,20 @@ CREATE TABLE IF NOT EXISTS deliveries (
 
 CREATE INDEX IF NOT EXISTS idx_deliveries_message ON deliveries(message_id);
 CREATE INDEX IF NOT EXISTS idx_deliveries_pending ON deliveries(acknowledged_at, sent_at);
+
+-- Web Push の購読情報（従業員 1 人が複数端末を登録できる）
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  employee_id     INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  endpoint        TEXT    NOT NULL UNIQUE,
+  p256dh          TEXT    NOT NULL,
+  auth            TEXT    NOT NULL,
+  user_agent      TEXT    NOT NULL DEFAULT '',
+  created_at      TEXT    NOT NULL DEFAULT (datetime('now')),
+  last_success_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_employee ON push_subscriptions(employee_id);
 
 -- 送信ログ（監査・モックプロバイダの出力先）
 CREATE TABLE IF NOT EXISTS outbound_logs (

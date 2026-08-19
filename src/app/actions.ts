@@ -141,7 +141,8 @@ export async function saveEmployeeAction(formData: FormData): Promise<void> {
 
   const fail = (reason: string) => redirect(`/employees?error=${encodeURIComponent(reason)}`);
   if (!input.name) fail('氏名を入力してください。');
-  if (!input.providerUserId) fail('送信先 ID を入力してください。');
+  // アプリ通知は送信先 ID を自動採番するため、入力を求めない。
+  if (!input.providerUserId && input.provider !== 'web_push') fail('送信先 ID を入力してください。');
 
   try {
     if (id) {

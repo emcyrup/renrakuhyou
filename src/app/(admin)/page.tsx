@@ -24,6 +24,7 @@ export default function DashboardPage() {
   const summaries = repo.listMessageSummaries(overdueHours);
   const overdueRows = repo.listOverdueDeliveries(overdueHours);
   const pendingCallRows = repo.listPendingPhoneCalls();
+  const missingPush = repo.listEmployeesMissingPush();
 
   const overdue: OverdueItem[] = overdueRows.map((row) => ({
     deliveryId: row.id,
@@ -74,6 +75,24 @@ export default function DashboardPage() {
         <StatCard label={`未確認（${overdueHours}h超）`} value={overdue.length} tone="danger" />
         <StatCard label="電話連絡 未実施" value={pendingCalls.length} tone="warn" />
       </div>
+
+      {missingPush.length > 0 ? (
+        <section className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <h2 className="text-sm font-bold text-amber-900">
+            通知設定が未完了の従業員が {missingPush.length} 名います
+          </h2>
+          <p className="mt-1 text-sm text-amber-800">
+            {missingPush.map((employee) => employee.name).join('、')}
+          </p>
+          <p className="mt-1 text-xs text-amber-800">
+            この状態では連絡が届きません。
+            <Link href="/employees" className="font-semibold underline">
+              従業員画面
+            </Link>
+            の「通知設定URL」を本人に案内してください。
+          </p>
+        </section>
+      ) : null}
 
       <section className="card mt-6 overflow-hidden">
         <div className="border-b border-slate-200 px-4 py-3">

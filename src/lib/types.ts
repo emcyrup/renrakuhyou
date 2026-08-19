@@ -1,6 +1,7 @@
-export type ProviderId = 'google_chat' | 'line_works' | 'line' | 'mock';
+export type ProviderId = 'web_push' | 'google_chat' | 'line_works' | 'line' | 'mock';
 
 export const PROVIDER_LABELS: Record<ProviderId, string> = {
+  web_push: 'アプリ通知（Web Push）',
   google_chat: 'Google Chat',
   line_works: 'LINE WORKS',
   line: 'LINE 公式アカウント',
@@ -22,8 +23,21 @@ export interface Employee {
   provider: ProviderId;
   provider_user_id: string;
   provider_space_id: string;
+  enroll_token: string;
   active: number;
   created_at: string;
+}
+
+/** Web Push の購読情報（従業員 1 人が複数端末を登録できる）。 */
+export interface PushSubscriptionRow {
+  id: number;
+  employee_id: number;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  user_agent: string;
+  created_at: string;
+  last_success_at: string | null;
 }
 
 export interface Message {
