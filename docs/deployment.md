@@ -102,10 +102,6 @@ which node     # /usr/bin/node であること（違う場合は手順 6 のパ�
 
 ### 4. アプリを配置してビルド
 
-> **`--branch` の指定を省略しないでください。** 既定ブランチ（`main`）にはまだアプリのコードが入っていないため、
-> 省略すると README しか取得できず、この先の `npm` がすべて失敗します。
-> 既定ブランチへ取り込み済みであれば `--branch` 以下は不要です。
-
 ```bash
 mkdir -p /opt/renrakuhyou
 chown renrakuhyou:renrakuhyou /opt/renrakuhyou
@@ -113,8 +109,7 @@ chown renrakuhyou:renrakuhyou /opt/renrakuhyou
 sudo -u renrakuhyou -H bash <<'SETUP'
 set -euo pipefail
 cd /opt/renrakuhyou
-git clone --branch claude/employee-message-notification-app-2av236 \
-          https://github.com/emcyrup/renrakuhyou.git .
+git clone https://github.com/emcyrup/renrakuhyou.git .
 npm ci
 npm run build
 SETUP
@@ -233,8 +228,14 @@ apt-get update && apt-get install -y caddy
 cp /opt/renrakuhyou/deploy/Caddyfile /etc/caddy/Caddyfile
 nano /etc/caddy/Caddyfile          # renrakuhyou.example.co.jp を書き換える
 
+# 注意: サイト名は「完全なホスト名」で書くこと。
+#   正: renrakuhyou999999.duckdns.org {
+#   誤: renrakuhyou999999 {          ← ドメイン部分が抜けると到達できない
+# APP_BASE_URL のホスト名と一字一句そろえてください。
+
 caddy validate --config /etc/caddy/Caddyfile   # Valid configuration と出ること
-systemctl reload caddy
+systemctl restart caddy
+systemctl status caddy --no-pager              # active (running) であること
 ```
 
 数十秒で証明書が取得されます。ブラウザで `https://renrakuhyou.example.co.jp` を開き、鍵アイコンが出れば完了です。

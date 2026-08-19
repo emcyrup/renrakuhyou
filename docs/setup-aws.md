@@ -156,16 +156,11 @@ chown renrakuhyou:renrakuhyou /opt/renrakuhyou
 
 ## 手順 6. アプリを配置してビルドする
 
-> **`--branch` の指定を省略しないでください。** 既定ブランチ（`main`）にはまだアプリのコードが入っていないため、
-> 省略すると README しか取得できず、この先の `npm` がすべて失敗します。
-> 既定ブランチへ取り込み済みであれば `--branch` 以下は不要です。
-
 ```bash
 sudo -u renrakuhyou -H bash <<'SETUP'
 set -euo pipefail
 cd /opt/renrakuhyou
-git clone --branch claude/employee-message-notification-app-2av236 \
-          https://github.com/emcyrup/renrakuhyou.git .
+git clone https://github.com/emcyrup/renrakuhyou.git .
 npm ci
 npm run build
 SETUP
@@ -288,9 +283,18 @@ apt-get update && apt-get install -y caddy
 cp /opt/renrakuhyou/deploy/Caddyfile /etc/caddy/Caddyfile
 nano /etc/caddy/Caddyfile     # 1 行目の renrakuhyou.example.co.jp を書き換える
 
+# 注意: サイト名は「完全なホスト名」で書くこと。
+#   正: renrakuhyou999999.duckdns.org {
+#   誤: renrakuhyou999999 {          ← ドメイン部分が抜けると到達できない
+# APP_BASE_URL のホスト名と一字一句そろえてください。
+
 caddy validate --config /etc/caddy/Caddyfile   # Valid configuration と出ること
-systemctl reload caddy
+systemctl restart caddy
+systemctl status caddy --no-pager              # active (running) であること
 ```
+
+> `caddy validate` は文法しか検査しません。**文法が正しくても起動に失敗することがある**ため、
+> 必ず `systemctl status caddy` で `active (running)` を確認してください。
 
 数十秒で証明書が取得されます。ブラウザで `https://renrakuhyou.example.co.jp` を開き、
 鍵アイコンとログイン画面が表示されれば公開完了です。
@@ -323,6 +327,13 @@ sudo -u renrakuhyou -H bash -c 'cd /opt/renrakuhyou && npm run healthcheck'
 ```
 
 **「失敗」が 0 件になるまで進めてください。** 失敗が残っている状態では、従業員に連絡が届かない可能性があります。
+
+> `/etc/renrakuhyou-cron.env` は root 専用のため、上のコマンドでは「注意」と表示されます。
+> ここまで含めて照合したい場合は、root のまま次を実行してください。
+>
+> ```bash
+> cd /opt/renrakuhyou && npm run healthcheck
+> ```
 
 ---
 
@@ -427,18 +438,48 @@ reboot
 
 | 症状 | 確認すること |
 | --- | --- |
-| ブラウザで開けない | `systemctl status caddy renrakuhyou` / Lightsail のファイアウォールで 443 が開いているか |
+| ブラウザで開けない | まず `npm run healthcheck` を実行。`/etc/caddy/Caddyfile` の 1 行目が**完全なホスト名**か（`renrakuhyou999999` のようにドメイン部分が抜けていないか）/ `systemctl status caddy renrakuhyou` / Lightsail のファイアウォールで 443 が開いているか |
 | 証明書が取得できない | `dig +short <ドメイン>` が静的 IP を返すか / ポート 80 が開いているか / `journalctl -u caddy` |
+| **`Job for caddy.service failed.`** | 下の「Caddy が起動しない」を参照 |
 | ログインできない | `.env` の `ADMIN_PASSWORD` を確認。変更したら `systemctl restart renrakuhyou` |
 | 通知が届かない | 従業員側が iPhone なら「ホーム画面に追加」を済ませているか / 「送信ログ」画面のエラー |
 | リマインドが動かない | `journalctl -u renrakuhyou-reminders` / `/etc/renrakuhyou-cron.env` の値が `.env` と一致しているか |
 | ビルドが途中で止まる | スワップが有効か（`free -h`）。手順 5 のスワップ作成を実行したか |
 | **手順 7 の npm が失敗する** | 下の「手順 7 の npm が失敗する」を参照 |
 
+### Caddy が起動しない
+
+`Job for caddy.service failed.` は **`caddy validate` ではなく `systemctl restart`（または `reload`）が出すメッセージ**です。
+`caddy validate` は文法しか検査しないため、**文法が正しくても起動に失敗することがあります。**
+
+まず実際のエラーを確認します。
+
+```bash
+journalctl -xeu caddy.service -n 30 --no-pager
+```
+
+| ログに出ている内容 | 原因と対処 |
+| --- | --- |
+| `opening log writer ... permission denied` | ログの出力先に書き込めません。`/etc/caddy/Caddyfile` に `log { ... }` ブロックがあれば削除してください（ログは journald に出るため `journalctl -u caddy` で確認できます）。ファイルに残したい場合は `mkdir -p /var/log/caddy && chown caddy:caddy /var/log/caddy` |
+| `address already in use` | 80 番か 443 番を別のプロセスが使っています。`ss -lntp` で確認して停止してください |
+| `Unit caddy.service is not active` | まだ起動していません。`systemctl start caddy` を実行してください |
+| `unrecognized directive` など | Caddyfile の記述誤りです。`caddy validate --config /etc/caddy/Caddyfile` の出力を確認してください |
+
+対処後に再確認します。
+
+```bash
+systemctl restart caddy
+systemctl status caddy --no-pager     # active (running) であること
+```
+
+> **証明書が取得できないことが原因で、このエラーになることはありません。**
+> Caddy は起動したまま裏で取得を再試行し、失敗の内容は `journalctl -u caddy` に記録されます。
+> DNS の未反映やポート 80 の閉塞は、このエラーの原因ではありません。
+
 ### 手順 7 の npm が失敗する
 
 `npm error Missing script: "push:keys"` や `Could not read package.json` が出る場合、
-**手順 6 でアプリのコードを取得できていません**（`--branch` の指定漏れが原因のことが多いです）。
+**手順 6 でアプリのコードを取得できていません。**
 
 まず状態を確認します。
 
@@ -446,25 +487,27 @@ reboot
 ls /opt/renrakuhyou
 ```
 
-`README.md` しか無い場合は、次のコマンドで復旧できます。**やり直しは不要です。**
+`README.md` しか無い場合は、次のコマンドで復旧できます。**最初からやり直す必要はありません。**
+
+> **`sudo` は付けないでください。** 手順 7 の時点では `renrakuhyou` ユーザーになっており、
+> このユーザーは `sudo` を使えません（`renrakuhyou is not in the sudoers file` というエラーになります）。
+> `/opt/renrakuhyou` の所有者は `renrakuhyou` なので、そのまま実行できます。
 
 ```bash
-sudo -u renrakuhyou -H bash <<'FIX'
-set -euo pipefail
-cd /opt/renrakuhyou
-git fetch origin claude/employee-message-notification-app-2av236
-git checkout claude/employee-message-notification-app-2av236
-npm ci
-npm run build
-FIX
-
-# 確認: 2 つとも表示されれば成功
-ls /opt/renrakuhyou/package.json /opt/renrakuhyou/node_modules/.bin/tsx
+cd /opt/renrakuhyou && \
+git pull && \
+npm ci && \
+npm run build && \
+ls package.json node_modules/.bin/tsx
 ```
 
-そのうえで、手順 7 からやり直してください。
+最後に `package.json` と `node_modules/.bin/tsx` の 2 つが表示されれば成功です。
+そのうえで、手順 7 の `cp .env.example .env` からやり直してください。
 
-ディレクトリが空の場合は、手順 6 の `git clone` をやり直してください。
+`whoami` が `renrakuhyou` 以外（`ubuntu` や `root`）の場合は、先頭に
+`sudo -u renrakuhyou -H bash -c '` を付け、末尾を `'` で閉じて実行してください。
+
+ディレクトリが空の場合は、手順 6 の `git clone` からやり直してください。
 
 まず `npm run healthcheck` を実行してください。多くの原因はこれで特定できます。
 

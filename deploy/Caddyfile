@@ -22,8 +22,7 @@ renrakuhyou.example.co.jp {
 	# 「>」は上流のヘッダを置き換える指定（追加ではなく上書き）
 	header @sw >Cache-Control "no-cache"
 
-	log {
-		output file /var/log/caddy/renrakuhyou.log
-		format json
-	}
+	# アクセスログは journald に出力される（journalctl -u caddy で確認できる）。
+	# ファイルへ出力したい場合は、書き込み先を caddy ユーザーが作成・書き込みできる
+	# 場所にしたうえで log ディレクティブを追加すること。
 }
