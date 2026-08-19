@@ -1,0 +1,14 @@
+# SQLite のバックアップ（タイマーから呼ばれる）
+# 設置先: /etc/systemd/system/renrakuhyou-backup.service
+[Unit]
+Description=連絡票 データベースのバックアップ
+
+[Service]
+Type=oneshot
+User=renrakuhyou
+WorkingDirectory=/opt/renrakuhyou
+ExecStart=/usr/bin/npm run backup
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/renrakuhyou

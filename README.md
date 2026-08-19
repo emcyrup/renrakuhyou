@@ -61,6 +61,8 @@ curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://<host>/api/cron/rem
 npm run worker
 ```
 
+サーバーへ設置する場合は、`deploy/` の systemd タイマーがこれを担います。
+
 ## セットアップ
 
 ```bash
@@ -77,6 +79,12 @@ npm run dev
 
 `DEFAULT_PROVIDER=mock` のままなら外部送信は行われず、送信内容は「送信ログ」に記録されます。
 連絡詳細画面の「確認画面を開く（モック用）」から、従業員側の動作をそのまま再現できます。
+
+### インターネットに公開する
+
+**→ [インターネット公開の手順](docs/deployment.md)**（VPS で月 700〜1,000 円程度、費用ゼロの構成も記載）
+
+設定ファイル（systemd / Caddy）は [`deploy/`](deploy/) に用意しています。
 
 ### 本番向けの設定
 
@@ -133,6 +141,7 @@ src/
 | `REMINDER_INTERVAL_HOURS` | `24` | リマインドの再送間隔 |
 | `MAX_REMINDERS` | `3` | リマインドの上限回数 |
 | `CRON_SECRET` | — | `/api/cron/reminders` の認証トークン |
+| `BACKUP_KEEP_DAYS` | `14` | バックアップの保持日数 |
 | `DEFAULT_PROVIDER` | `mock` | 従業員登録時の既定サービス |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | — | アプリ通知に使う鍵（`npm run push:keys` で生成） |
 | `VAPID_SUBJECT` | — | push サービスへの連絡先（`mailto:` の URL） |

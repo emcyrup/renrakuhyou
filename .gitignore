@@ -8,3 +8,4 @@ next-env.d.ts
 data/
 *.sqlite
 *.sqlite-journal
+backups/

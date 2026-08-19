@@ -1,0 +1,29 @@
+# HTTPS 証明書の取得・更新を自動で行うリバースプロキシ設定
+# 設置先: /etc/caddy/Caddyfile
+#
+# renrakuhyou.example.co.jp を実際のドメインに置き換えること。
+# ドメインの A レコードがこのサーバーの IP を指していれば、
+# Caddy が Let's Encrypt の証明書を自動で取得し、以後の更新も自動で行う。
+
+renrakuhyou.example.co.jp {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:3000
+
+	header {
+		# HTTPS を 1 年間強制する（Web Push は HTTPS が必須）
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+	}
+
+	# Service Worker はスコープを全体にするためキャッシュさせない
+	@sw path /sw.js
+	# 「>」は上流のヘッダを置き換える指定（追加ではなく上書き）
+	header @sw >Cache-Control "no-cache"
+
+	log {
+		output file /var/log/caddy/renrakuhyou.log
+		format json
+	}
+}

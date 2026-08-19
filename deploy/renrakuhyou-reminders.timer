@@ -1,0 +1,13 @@
+# 15 分おきにリマインドの対象を確認する
+# 設置先: /etc/systemd/system/renrakuhyou-reminders.timer
+[Unit]
+Description=連絡票 リマインドの定期実行
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+# サーバー停止中に飛ばした分を起動後に補う
+Persistent=true
+
+[Install]
+WantedBy=timers.target
