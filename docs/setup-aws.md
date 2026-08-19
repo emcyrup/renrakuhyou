@@ -283,6 +283,11 @@ apt-get update && apt-get install -y caddy
 cp /opt/renrakuhyou/deploy/Caddyfile /etc/caddy/Caddyfile
 nano /etc/caddy/Caddyfile     # 1 行目の renrakuhyou.example.co.jp を書き換える
 
+# 注意: サイト名は「完全なホスト名」で書くこと。
+#   正: renrakuhyou999999.duckdns.org {
+#   誤: renrakuhyou999999 {          ← ドメイン部分が抜けると到達できない
+# APP_BASE_URL のホスト名と一字一句そろえてください。
+
 caddy validate --config /etc/caddy/Caddyfile   # Valid configuration と出ること
 systemctl restart caddy
 systemctl status caddy --no-pager              # active (running) であること
@@ -426,7 +431,7 @@ reboot
 
 | 症状 | 確認すること |
 | --- | --- |
-| ブラウザで開けない | `systemctl status caddy renrakuhyou` / Lightsail のファイアウォールで 443 が開いているか |
+| ブラウザで開けない | まず `npm run healthcheck` を実行。`/etc/caddy/Caddyfile` の 1 行目が**完全なホスト名**か（`renrakuhyou999999` のようにドメイン部分が抜けていないか）/ `systemctl status caddy renrakuhyou` / Lightsail のファイアウォールで 443 が開いているか |
 | 証明書が取得できない | `dig +short <ドメイン>` が静的 IP を返すか / ポート 80 が開いているか / `journalctl -u caddy` |
 | **`Job for caddy.service failed.`** | 下の「Caddy が起動しない」を参照 |
 | ログインできない | `.env` の `ADMIN_PASSWORD` を確認。変更したら `systemctl restart renrakuhyou` |

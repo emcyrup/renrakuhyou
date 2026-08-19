@@ -204,12 +204,66 @@ function checkCronEnvFile() {
   }
 }
 
+/**
+ * Caddyfile のサイト名と APP_BASE_URL のホスト名が一致しているかを見る。
+ * ここがずれていると、証明書は取れているのにページへ到達できない状態になる。
+ */
+function checkCaddySite() {
+  const file = process.env.CADDYFILE_PATH ?? '/etc/caddy/Caddyfile';
+  if (!fs.existsSync(file)) return; // Caddy を使わない構成では確認しない
+
+  const baseUrl = process.env.APP_BASE_URL;
+  if (!baseUrl) return; // APP_BASE_URL 側は checkBaseUrl が報告済み
+
+  let expected: string;
+  try {
+    expected = new URL(baseUrl).host;
+  } catch {
+    return;
+  }
+
+  // サイトブロックの見出し行（`example.com {` や `example.com, www.example.com {`）を集める。
+  // header などのネストしたディレクティブを拾わないよう、字下げのない行だけを見る。
+  // 先頭のグローバル設定ブロック（`{` だけの行）も対象外。
+  const addresses = fs
+    .readFileSync(file, 'utf8')
+    .split('\n')
+    .filter((line) => line === line.trimStart())
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('#') && line.endsWith('{') && line !== '{')
+    .flatMap((line) =>
+      line
+        .slice(0, -1)
+        .split(',')
+        .map((address) => address.trim().replace(/^https?:\/\//, ''))
+        .filter(Boolean),
+    );
+
+  if (addresses.length === 0) {
+    record('WARN', 'Caddyfile からサイト名を読み取れなかった', file);
+    return;
+  }
+
+  if (addresses.includes(expected)) {
+    record('PASS', `Caddyfile のサイト名が APP_BASE_URL と一致している（${expected}）`);
+    return;
+  }
+
+  record(
+    'FAIL',
+    `Caddyfile のサイト名が APP_BASE_URL と一致しない`,
+    `Caddyfile: ${addresses.join(', ')} / APP_BASE_URL: ${expected} — ` +
+      `${file} の先頭を「${expected} {」に直し、systemctl restart caddy を実行してください`,
+  );
+}
+
 async function main() {
   checkEnv();
   checkBaseUrl();
   checkVapid();
   checkDatabase();
   checkCronEnvFile();
+  checkCaddySite();
   await checkHttp();
 
   const icon: Record<Level, string> = { PASS: ' OK ', WARN: '注意', FAIL: '失敗' };

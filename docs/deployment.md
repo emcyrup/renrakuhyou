@@ -228,6 +228,11 @@ apt-get update && apt-get install -y caddy
 cp /opt/renrakuhyou/deploy/Caddyfile /etc/caddy/Caddyfile
 nano /etc/caddy/Caddyfile          # renrakuhyou.example.co.jp を書き換える
 
+# 注意: サイト名は「完全なホスト名」で書くこと。
+#   正: renrakuhyou999999.duckdns.org {
+#   誤: renrakuhyou999999 {          ← ドメイン部分が抜けると到達できない
+# APP_BASE_URL のホスト名と一字一句そろえてください。
+
 caddy validate --config /etc/caddy/Caddyfile   # Valid configuration と出ること
 systemctl restart caddy
 systemctl status caddy --no-pager              # active (running) であること
