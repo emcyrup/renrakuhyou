@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { acknowledgeAction } from '@/app/ack/actions';
 import { formatDateTime } from '@/lib/format';
@@ -17,6 +18,9 @@ export default async function AckPage({ params }: { params: Promise<{ token: str
 
   const message = repo.getMessage(delivery.message_id);
   if (!message) notFound();
+
+  // 本人のページ（トップ / メッセージ / 設定）へ戻れるようにする。
+  const employee = repo.getEmployee(delivery.employee_id);
 
   const acknowledged = Boolean(delivery.acknowledged_at);
   const high = message.level === 'high';
@@ -63,6 +67,12 @@ export default async function AckPage({ params }: { params: Promise<{ token: str
           )}
         </div>
       </div>
+
+      {employee ? (
+        <Link href={`/enroll/${employee.enroll_token}`} className="btn-secondary mt-4 w-full py-3">
+          自分のページへ戻る
+        </Link>
+      ) : null}
 
       <p className="mt-4 text-center text-xs text-slate-400">連絡票</p>
     </main>

@@ -74,6 +74,11 @@ export function updateEmployee(
     });
 }
 
+/** 従業員本人による氏名の変更（本人ページの「設定」から行う）。 */
+export function renameEmployee(id: number, name: string): void {
+  db().prepare('UPDATE employees SET name = ? WHERE id = ?').run(name, id);
+}
+
 export function deleteEmployee(id: number): void {
   db().prepare('DELETE FROM employees WHERE id = ?').run(id);
 }
