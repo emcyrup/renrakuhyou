@@ -5,8 +5,12 @@ import { requireUser } from '@/lib/auth';
 const NAV = [
   { href: '/', label: 'ダッシュボード' },
   { href: '/messages/new', label: '新規連絡' },
+  { href: '/dispatches', label: '配車情報' },
+  { href: '/reports', label: '報告' },
+  { href: '/attendance', label: '点呼' },
   { href: '/employees', label: '従業員' },
   { href: '/logs', label: '送信ログ' },
+  { href: '/settings', label: '設定' },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {

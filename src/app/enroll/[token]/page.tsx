@@ -1,6 +1,8 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import type { Metadata, Viewport } from 'next';
 import { notFound } from 'next/navigation';
-import EmployeeApp from '@/components/EmployeeApp';
+import EmployeeApp from '@/components/employee/EmployeeApp';
 import { config } from '@/lib/config';
 import { buildEmployeeSnapshot } from '@/lib/employee-view';
 import * as repo from '@/lib/repo';
@@ -20,9 +22,14 @@ export async function generateMetadata({ params }: { params: Promise<{ token: st
   };
 }
 
+/** public/mascot.png を置くと、受付のキャラクターとして使われる。 */
+function mascotUrl(): string | null {
+  return fs.existsSync(path.join(process.cwd(), 'public', 'mascot.png')) ? '/mascot.png' : null;
+}
+
 /**
- * 従業員本人のページ（ログイン不要・URL のトークンで本人を識別）。
- * 画面は「トップ / メッセージ / 設定」のタブで切り替える（→ components/EmployeeApp）。
+ * 従業員本人の受付画面（ログイン不要・URL のトークンで本人を識別）。
+ * 出勤・退勤の点呼、連絡の確認、報告、AI への質問をここで行う（→ components/employee）。
  * ここでは最初の表示に使うデータだけを用意し、以降の更新は画面側から API で行う。
  */
 export default async function EnrollPage({ params }: { params: Promise<{ token: string }> }) {
@@ -36,7 +43,8 @@ export default async function EnrollPage({ params }: { params: Promise<{ token: 
       token={token}
       vapidPublicKey={process.env.VAPID_PUBLIC_KEY ?? ''}
       timeZone={config.timeZone}
-      initial={buildEmployeeSnapshot(employee)}
+      mascotUrl={mascotUrl()}
+      initial={await buildEmployeeSnapshot(employee)}
     />
   );
 }

@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { saveSettings } from '@/lib/app-settings';
 import { SESSION_COOKIE, createSessionToken, requireUser, verifyPassword } from '@/lib/auth';
 import { resendDelivery, sendMessage, sendReminders } from '@/lib/delivery-service';
 import * as repo from '@/lib/repo';
@@ -164,6 +165,93 @@ export async function deleteEmployeeAction(formData: FormData): Promise<void> {
   repo.deleteEmployee(Number(text(formData, 'id')));
   revalidatePath('/employees');
   redirect('/employees');
+}
+
+// ---------------------------------------------------------------- 配車情報
+
+export async function saveDispatchAction(formData: FormData): Promise<void> {
+  await requireUser();
+
+  const id = Number(text(formData, 'id')) || 0;
+  const date = text(formData, 'date');
+  const employeeId = Number(text(formData, 'employeeId')) || 0;
+  const input = {
+    date,
+    vehicleNo: text(formData, 'vehicleNo'),
+    route: text(formData, 'route'),
+    employeeId: employeeId || null,
+    note: text(formData, 'note'),
+  };
+
+  const fail = (reason: string) => redirect(`/dispatches?date=${date}&error=${encodeURIComponent(reason)}`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) fail('日付を選んでください。');
+  if (!input.vehicleNo) fail('車番を入力してください。');
+  if (!input.route) fail('区間を入力してください。');
+
+  if (id) repo.updateDispatch(id, input);
+  else repo.createDispatch(input);
+
+  revalidatePath('/dispatches');
+  redirect(`/dispatches?date=${date}`);
+}
+
+export async function deleteDispatchAction(formData: FormData): Promise<void> {
+  await requireUser();
+  const date = text(formData, 'date');
+  repo.deleteDispatch(Number(text(formData, 'id')));
+  revalidatePath('/dispatches');
+  redirect(`/dispatches?date=${date}`);
+}
+
+// ---------------------------------------------------------------- 報告
+
+export async function handleReportAction(formData: FormData): Promise<void> {
+  const user = await requireUser();
+  const id = Number(text(formData, 'id'));
+
+  if (text(formData, 'undo') === 'on') repo.clearReportHandled(id);
+  else repo.setReportHandled(id, user);
+
+  revalidatePath('/reports');
+  revalidatePath('/');
+  redirect('/reports');
+}
+
+export async function deleteReportAction(formData: FormData): Promise<void> {
+  await requireUser();
+  repo.deleteReport(Number(text(formData, 'id')));
+  revalidatePath('/reports');
+  redirect('/reports');
+}
+
+// ---------------------------------------------------------------- 設定
+
+export interface SettingsResult {
+  ok: boolean;
+  message: string;
+}
+
+export async function saveSettingsAction(
+  _prev: SettingsResult | null,
+  formData: FormData,
+): Promise<SettingsResult> {
+  await requireUser();
+
+  const weatherAreaCode = text(formData, 'weatherAreaCode');
+  if (weatherAreaCode && !/^\d{6}$/.test(weatherAreaCode)) {
+    return { ok: false, message: '天気の地域コードは 6 桁の数字で入力してください（例: 270000）。' };
+  }
+
+  saveSettings({
+    companyName: text(formData, 'companyName'),
+    oneWord: text(formData, 'oneWord'),
+    aiInstructions: String(formData.get('aiInstructions') ?? '').trim(),
+    weatherAreaCode,
+  });
+
+  revalidatePath('/settings');
+  revalidatePath('/');
+  return { ok: true, message: '保存しました。' };
 }
 
 // ---------------------------------------------------------------- リマインド

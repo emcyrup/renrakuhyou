@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 const MAX_NAME_LENGTH = 40;
 
 /**
- * 従業員本人のページが使う API。認証は URL のトークン（enroll_token）で行う。
+ * 従業員本人の受付画面が使う API。認証は URL のトークン（enroll_token）で行う。
  *   GET   : 画面の再読み込み（新しい連絡の受信を画面に反映する）
  *   PATCH : 氏名の変更
  */
@@ -18,7 +18,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ tok
   const employee = repo.getEmployeeByEnrollToken(token);
   if (!employee) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
-  return NextResponse.json(buildEmployeeSnapshot(employee), { headers: { 'cache-control': 'no-store' } });
+  return NextResponse.json(await buildEmployeeSnapshot(employee), { headers: { 'cache-control': 'no-store' } });
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ token: string }> }) {
@@ -42,5 +42,5 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ to
   const updated = repo.getEmployeeByEnrollToken(token);
   if (!updated) return NextResponse.json({ error: 'not found' }, { status: 404 });
 
-  return NextResponse.json(buildEmployeeSnapshot(updated), { headers: { 'cache-control': 'no-store' } });
+  return NextResponse.json(await buildEmployeeSnapshot(updated), { headers: { 'cache-control': 'no-store' } });
 }

@@ -77,6 +77,74 @@ export interface DeliveryRow extends Delivery {
   phone: string;
   message_title: string;
   message_level: MessageLevel;
+  message_body: string;
+}
+
+/** 点呼（出勤・退勤）。 */
+export type AttendanceKind = 'in' | 'out';
+
+export const ATTENDANCE_LABELS: Record<AttendanceKind, string> = {
+  in: '出勤',
+  out: '退勤',
+};
+
+export interface Attendance {
+  id: number;
+  employee_id: number;
+  kind: AttendanceKind;
+  told_count: number;
+  note: string;
+  created_at: string;
+}
+
+/** 従業員からの報告。 */
+export type ReportCategory = 'vehicle' | 'road' | 'cargo' | 'other';
+
+export const REPORT_CATEGORY_LABELS: Record<ReportCategory, string> = {
+  vehicle: '車両',
+  road: '道路',
+  cargo: '荷物',
+  other: 'その他',
+};
+
+export interface Report {
+  id: number;
+  employee_id: number;
+  category: ReportCategory;
+  body: string;
+  urgent: number;
+  shared: number;
+  handled_at: string | null;
+  handled_by: string | null;
+  created_at: string;
+}
+
+export interface ReportRow extends Report {
+  employee_name: string;
+  department: string;
+}
+
+/** 配車情報（1 日 1 行 × 車両）。 */
+export interface Dispatch {
+  id: number;
+  date: string;
+  vehicle_no: string;
+  route: string;
+  employee_id: number | null;
+  note: string;
+  created_at: string;
+}
+
+export interface DispatchRow extends Dispatch {
+  employee_name: string | null;
+}
+
+export interface AiMessage {
+  id: number;
+  employee_id: number;
+  role: 'user' | 'assistant';
+  body: string;
+  created_at: string;
 }
 
 export type DeliveryState = 'pending' | 'failed' | 'sent' | 'opened' | 'acknowledged' | 'completed';

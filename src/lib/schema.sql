@@ -82,3 +82,64 @@ CREATE TABLE IF NOT EXISTS outbound_logs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_outbound_logs_delivery ON outbound_logs(delivery_id);
+
+-- 点呼（出勤・退勤）。誰にいつ何件の連絡を伝えたかを残す。
+CREATE TABLE IF NOT EXISTS attendance (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  kind        TEXT    NOT NULL,                        -- in（出勤）| out（退勤）
+  told_count  INTEGER NOT NULL DEFAULT 0,              -- 点呼時に伝えた連絡の件数
+  note        TEXT    NOT NULL DEFAULT '',
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+  CHECK (kind IN ('in', 'out'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_attendance_employee ON attendance(employee_id, created_at);
+
+-- 従業員からの報告（車両・道路・荷物など）
+CREATE TABLE IF NOT EXISTS reports (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  category    TEXT    NOT NULL,                        -- vehicle | road | cargo | other
+  body        TEXT    NOT NULL,
+  urgent      INTEGER NOT NULL DEFAULT 0,              -- 事故など、すぐ知らせるべき報告
+  shared      INTEGER NOT NULL DEFAULT 1,              -- 「みんなの報告」に出すか
+  handled_at  TEXT,                                    -- 確認者が対応済みにした日時
+  handled_by  TEXT,
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+  CHECK (category IN ('vehicle', 'road', 'cargo', 'other'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_reports_created ON reports(created_at);
+
+-- 配車情報（確認者が 1 日分を登録する）
+CREATE TABLE IF NOT EXISTS dispatches (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  date        TEXT    NOT NULL,                        -- YYYY-MM-DD（表示用のローカル日付）
+  vehicle_no  TEXT    NOT NULL,                        -- 例: 1号車
+  route       TEXT    NOT NULL,                        -- 例: 大阪 → 名古屋
+  employee_id INTEGER REFERENCES employees(id) ON DELETE SET NULL,
+  note        TEXT    NOT NULL DEFAULT '',
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_dispatches_date ON dispatches(date);
+
+-- AI への質問と回答（誰に何を伝えたかを残し、続けて質問できるようにする）
+CREATE TABLE IF NOT EXISTS ai_messages (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  employee_id INTEGER NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
+  role        TEXT    NOT NULL,                        -- user | assistant
+  body        TEXT    NOT NULL,
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+  CHECK (role IN ('user', 'assistant'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_ai_messages_employee ON ai_messages(employee_id, id);
+
+-- 画面や AI の設定（会社名・今日のひとこと・AI への指示・天気の地域）
+CREATE TABLE IF NOT EXISTS settings (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
