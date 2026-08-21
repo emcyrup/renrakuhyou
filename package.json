@@ -14,6 +14,7 @@
     "healthcheck": "tsx --env-file-if-exists=.env scripts/healthcheck.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.120.0",
     "better-sqlite3": "^13.0.3",
     "next": "^15.5.23",
     "react": "^19.2.8",

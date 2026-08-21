@@ -3,8 +3,10 @@ import { runRemindersAction } from '@/app/actions';
 import OverduePopup, { type OverdueItem, type PhoneCallItem } from '@/components/OverduePopup';
 import { LevelBadge } from '@/components/badges';
 import { config } from '@/lib/config';
+import { dayRangeUtc } from '@/lib/day';
 import { elapsedLabel, formatDateTime } from '@/lib/format';
 import * as repo from '@/lib/repo';
+import { REPORT_CATEGORY_LABELS } from '@/lib/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +27,13 @@ export default function DashboardPage() {
   const overdueRows = repo.listOverdueDeliveries(overdueHours);
   const pendingCallRows = repo.listPendingPhoneCalls();
   const missingPush = repo.listEmployeesMissingPush();
+
+  // 受付画面から届いた報告と、今日の点呼の状況。
+  const unhandledReports = repo.listReports(20).filter((report) => !report.handled_at);
+  const [from, to] = dayRangeUtc();
+  const attendance = repo.listAttendanceBetween(from, to);
+  const checkedIn = new Set(attendance.filter((row) => row.kind === 'in').map((row) => row.employee_id));
+  const activeEmployees = repo.listEmployees(true);
 
   const overdue: OverdueItem[] = overdueRows.map((row) => ({
     deliveryId: row.id,
@@ -65,16 +74,44 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <StatCard label="連絡（全体）" value={summaries.length} tone="neutral" />
-        <StatCard
-          label="送信済み"
-          value={summaries.filter((summary) => summary.status === 'sent').length}
-          tone="neutral"
-        />
         <StatCard label={`未確認（${overdueHours}h超）`} value={overdue.length} tone="danger" />
         <StatCard label="電話連絡 未実施" value={pendingCalls.length} tone="warn" />
+        <StatCard label="未対応の報告" value={unhandledReports.length} tone={unhandledReports.length > 0 ? 'warn' : 'neutral'} />
+        <StatCard label="本日 出勤の点呼" value={checkedIn.size} tone="neutral" />
+        <StatCard
+          label="本日 未点呼"
+          value={activeEmployees.length - checkedIn.size}
+          tone={activeEmployees.length - checkedIn.size > 0 ? 'warn' : 'neutral'}
+        />
       </div>
+
+      {unhandledReports.length > 0 ? (
+        <section className="card mt-4 overflow-hidden">
+          <div className="flex items-baseline justify-between border-b border-slate-200 px-4 py-3">
+            <h2 className="text-sm font-bold text-slate-800">従業員からの報告（未対応）</h2>
+            <Link href="/reports" className="text-xs font-semibold text-brand-600 hover:underline">
+              すべて見る
+            </Link>
+          </div>
+          <ul className="divide-y divide-slate-100">
+            {unhandledReports.slice(0, 5).map((report) => (
+              <li key={report.id} className={`px-4 py-2.5 ${report.urgent ? 'bg-red-50' : ''}`}>
+                <div className="flex flex-wrap items-baseline gap-2">
+                  {report.urgent ? <span className="badge bg-red-100 text-red-700">急ぎ</span> : null}
+                  <span className="badge bg-slate-100 text-slate-700">
+                    {REPORT_CATEGORY_LABELS[report.category]}
+                  </span>
+                  <span className="text-sm font-semibold text-slate-900">{report.employee_name}</span>
+                  <span className="text-xs text-slate-500">{elapsedLabel(report.created_at)}</span>
+                </div>
+                <p className="mt-0.5 text-sm text-slate-700">{report.body}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {missingPush.length > 0 ? (
         <section className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">

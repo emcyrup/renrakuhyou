@@ -1,13 +1,21 @@
 import crypto from 'node:crypto';
 import { db, nowIso } from './db';
 import type {
+  AiMessage,
+  Attendance,
+  AttendanceKind,
   Delivery,
   DeliveryRow,
+  Dispatch,
+  DispatchRow,
   Employee,
   Message,
   MessageLevel,
   ProviderId,
   PushSubscriptionRow,
+  Report,
+  ReportCategory,
+  ReportRow,
 } from './types';
 
 // ---------------------------------------------------------------- 従業員
@@ -153,7 +161,7 @@ export function deleteMessage(id: number): void {
 
 const DELIVERY_ROW_SELECT = `
   SELECT d.*, e.name AS employee_name, e.department, e.phone,
-         m.title AS message_title, m.level AS message_level
+         m.title AS message_title, m.level AS message_level, m.body AS message_body
     FROM deliveries d
     JOIN employees e ON e.id = d.employee_id
     JOIN messages   m ON m.id = d.message_id
@@ -397,4 +405,199 @@ export function listOutboundLogs(limit = 50): OutboundLogRow[] {
     .all(limit) as OutboundLogRow[];
 }
 
-export type { Delivery };
+// ---------------------------------------------------------------- 点呼（出勤・退勤）
+
+export function recordAttendance(input: {
+  employeeId: number;
+  kind: AttendanceKind;
+  toldCount: number;
+  note?: string;
+}): number {
+  const result = db()
+    .prepare(
+      `INSERT INTO attendance (employee_id, kind, told_count, note)
+       VALUES (@employeeId, @kind, @toldCount, @note)`,
+    )
+    .run({ ...input, note: input.note ?? '' });
+  return Number(result.lastInsertRowid);
+}
+
+/** 直近の点呼（出勤中かどうかの判定に使う）。 */
+export function latestAttendance(employeeId: number): Attendance | undefined {
+  return db()
+    .prepare('SELECT * FROM attendance WHERE employee_id = ? ORDER BY id DESC LIMIT 1')
+    .get(employeeId) as Attendance | undefined;
+}
+
+export interface AttendanceRow extends Attendance {
+  employee_name: string;
+  department: string;
+}
+
+/** 指定日（UTC 保存のためローカル日付の範囲で絞る）の点呼一覧。 */
+export function listAttendanceBetween(fromIso: string, toIso: string): AttendanceRow[] {
+  return db()
+    .prepare(
+      `SELECT a.*, e.name AS employee_name, e.department
+         FROM attendance a
+         JOIN employees e ON e.id = a.employee_id
+        WHERE a.created_at >= ? AND a.created_at < ?
+        ORDER BY a.id DESC`,
+    )
+    .all(fromIso, toIso) as AttendanceRow[];
+}
+
+// ---------------------------------------------------------------- 報告
+
+export function createReport(input: {
+  employeeId: number;
+  category: ReportCategory;
+  body: string;
+  urgent: boolean;
+  shared: boolean;
+}): number {
+  const result = db()
+    .prepare(
+      `INSERT INTO reports (employee_id, category, body, urgent, shared)
+       VALUES (@employeeId, @category, @body, @urgent, @shared)`,
+    )
+    .run({ ...input, urgent: input.urgent ? 1 : 0, shared: input.shared ? 1 : 0 });
+  return Number(result.lastInsertRowid);
+}
+
+export function listReports(limit = 100): ReportRow[] {
+  return db()
+    .prepare(
+      `SELECT r.*, e.name AS employee_name, e.department
+         FROM reports r
+         JOIN employees e ON e.id = r.employee_id
+        ORDER BY r.id DESC
+        LIMIT ?`,
+    )
+    .all(limit) as ReportRow[];
+}
+
+/** 「みんなの報告」に出す分（共有指定のものだけ）。 */
+export function listSharedReports(limit = 10): ReportRow[] {
+  return db()
+    .prepare(
+      `SELECT r.*, e.name AS employee_name, e.department
+         FROM reports r
+         JOIN employees e ON e.id = r.employee_id
+        WHERE r.shared = 1
+        ORDER BY r.id DESC
+        LIMIT ?`,
+    )
+    .all(limit) as ReportRow[];
+}
+
+export function countUnhandledReports(): number {
+  return (db().prepare('SELECT COUNT(*) AS count FROM reports WHERE handled_at IS NULL').get() as { count: number })
+    .count;
+}
+
+export function setReportHandled(id: number, handledBy: string): void {
+  db()
+    .prepare('UPDATE reports SET handled_at = ?, handled_by = ? WHERE id = ?')
+    .run(nowIso(), handledBy, id);
+}
+
+export function clearReportHandled(id: number): void {
+  db().prepare('UPDATE reports SET handled_at = NULL, handled_by = NULL WHERE id = ?').run(id);
+}
+
+export function deleteReport(id: number): void {
+  db().prepare('DELETE FROM reports WHERE id = ?').run(id);
+}
+
+// ---------------------------------------------------------------- 配車情報
+
+export function listDispatches(date: string): DispatchRow[] {
+  return db()
+    .prepare(
+      `SELECT d.*, e.name AS employee_name
+         FROM dispatches d
+         LEFT JOIN employees e ON e.id = d.employee_id
+        WHERE d.date = ?
+        ORDER BY d.vehicle_no, d.id`,
+    )
+    .all(date) as DispatchRow[];
+}
+
+export function createDispatch(input: {
+  date: string;
+  vehicleNo: string;
+  route: string;
+  employeeId: number | null;
+  note: string;
+}): number {
+  const result = db()
+    .prepare(
+      `INSERT INTO dispatches (date, vehicle_no, route, employee_id, note)
+       VALUES (@date, @vehicleNo, @route, @employeeId, @note)`,
+    )
+    .run(input);
+  return Number(result.lastInsertRowid);
+}
+
+export function updateDispatch(
+  id: number,
+  input: { date: string; vehicleNo: string; route: string; employeeId: number | null; note: string },
+): void {
+  db()
+    .prepare(
+      `UPDATE dispatches
+          SET date = @date, vehicle_no = @vehicleNo, route = @route,
+              employee_id = @employeeId, note = @note
+        WHERE id = @id`,
+    )
+    .run({ ...input, id });
+}
+
+export function deleteDispatch(id: number): void {
+  db().prepare('DELETE FROM dispatches WHERE id = ?').run(id);
+}
+
+// ---------------------------------------------------------------- AI の会話
+
+export function appendAiMessage(employeeId: number, role: 'user' | 'assistant', body: string): void {
+  db().prepare('INSERT INTO ai_messages (employee_id, role, body) VALUES (?, ?, ?)').run(employeeId, role, body);
+}
+
+/** 直近の会話（古い順に返す）。 */
+export function listAiMessages(employeeId: number, limit = 20): AiMessage[] {
+  const rows = db()
+    .prepare('SELECT * FROM ai_messages WHERE employee_id = ? ORDER BY id DESC LIMIT ?')
+    .all(employeeId, limit) as AiMessage[];
+  return rows.reverse();
+}
+
+export function countAiMessagesSince(employeeId: number, sinceIso: string): number {
+  return (
+    db()
+      .prepare("SELECT COUNT(*) AS count FROM ai_messages WHERE employee_id = ? AND role = 'user' AND created_at >= ?")
+      .get(employeeId, sinceIso) as { count: number }
+  ).count;
+}
+
+export function clearAiMessages(employeeId: number): void {
+  db().prepare('DELETE FROM ai_messages WHERE employee_id = ?').run(employeeId);
+}
+
+// ---------------------------------------------------------------- 設定
+
+export function getSettings(): Record<string, string> {
+  const rows = db().prepare('SELECT key, value FROM settings').all() as { key: string; value: string }[];
+  return Object.fromEntries(rows.map((row) => [row.key, row.value]));
+}
+
+export function setSetting(key: string, value: string): void {
+  db()
+    .prepare(
+      `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`,
+    )
+    .run(key, value, nowIso());
+}
+
+export type { Delivery, Dispatch, Report };

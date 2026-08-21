@@ -7,7 +7,9 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { loadSettings } from '../src/lib/app-settings';
 import { db } from '../src/lib/db';
+import { getWeather } from '../src/lib/weather';
 
 type Level = 'PASS' | 'WARN' | 'FAIL';
 
@@ -98,6 +100,27 @@ function checkVapid() {
     record('FAIL', 'VAPID_SUBJECT が不正', 'mailto: または https:// で始まる必要があります');
   } else {
     record('PASS', `VAPID_SUBJECT = ${subject}`);
+  }
+}
+
+/** AI（Claude API）と天気（気象庁）の設定。使わない構成でも動くため、いずれも「注意」止まり。 */
+async function checkOptionalServices() {
+  if (process.env.ANTHROPIC_API_KEY) {
+    record('PASS', 'AI の API キーが設定されている');
+  } else {
+    record('WARN', 'ANTHROPIC_API_KEY が未設定', '従業員の「AI に質問する」は使えません');
+  }
+
+  const settings = loadSettings();
+  const weather = await getWeather(settings.weatherAreaCode);
+  if (weather) {
+    record('PASS', `天気を取得できる（${weather.area || settings.weatherAreaCode}: ${weather.text}）`);
+  } else {
+    record(
+      'WARN',
+      `天気を取得できない（地域コード ${settings.weatherAreaCode}）`,
+      '受付画面の天気は表示されません。地域コードと外部への通信をご確認ください',
+    );
   }
 }
 
@@ -287,6 +310,7 @@ async function main() {
   checkDatabase();
   checkCronEnvFile();
   checkCaddySite();
+  await checkOptionalServices();
   await checkHttp();
 
   const icon: Record<Level, string> = { PASS: ' OK ', WARN: '注意', FAIL: '失敗' };
