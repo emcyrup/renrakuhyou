@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { notFound } from 'next/navigation';
 import EmployeeApp from '@/components/EmployeeApp';
+import { config } from '@/lib/config';
 import { buildEmployeeSnapshot } from '@/lib/employee-view';
 import * as repo from '@/lib/repo';
 
@@ -34,6 +35,7 @@ export default async function EnrollPage({ params }: { params: Promise<{ token: 
     <EmployeeApp
       token={token}
       vapidPublicKey={process.env.VAPID_PUBLIC_KEY ?? ''}
+      timeZone={config.timeZone}
       initial={buildEmployeeSnapshot(employee)}
     />
   );
